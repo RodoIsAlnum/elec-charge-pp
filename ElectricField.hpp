@@ -5,6 +5,7 @@
 #include <functional>
 #include <iostream>
 
+#include "TextRender.hpp"
 
 class ElectricCharge {
     public:

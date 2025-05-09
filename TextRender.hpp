@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 
-// Declaración de la estructura Character
+// Character struct
 struct Character {
     unsigned int TextureID;
     glm::ivec2 Size;
@@ -20,10 +20,10 @@ public:
     TextRender(const std::string& fontPath, unsigned int fontSize);
     ~TextRender();
     
-    // Inicializa los shaders para el texto
+    // Initializes text shaders
     bool init();
     
-    // Renderiza texto en una posición específica con un color y escala
+    // Renders text on a specific position with a color and scale
     void renderText(const std::string& text, float x, float y, float scale, const glm::vec3& color);
     
 private:

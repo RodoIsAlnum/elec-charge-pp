@@ -17,6 +17,10 @@
 #include "ChargeRenderer.hpp"
 #include "TextRender.hpp"
 #include "Menu.hpp"
+#include "Sensor.hpp"
+
+
+//todo: Add charge values text into the charge
 
 // Global variables for window size
 int windowWidth = 1280;
@@ -35,6 +39,10 @@ int menuOption;
 // Global variables for dragging and drop
 bool draggingCharge = false;
 int selectedChargeIndex = -1;
+
+// Global variables for sensor
+Sensor* fieldSensor = nullptr;
+bool draggingSensor = false;
 
 
 // Window resizing callback
@@ -172,14 +180,20 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     } else {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
-                // Try to select a charge
-                selectedChargeIndex = electricField.findChargeAt(worldX, worldY);
-                if (selectedChargeIndex >= 0) {
-                    draggingCharge = true;
+                // First check if sensor is clicked (sensor has priority)
+                if (fieldSensor && fieldSensor->isActive() && fieldSensor->isPointOnSensor(worldX, worldY)) {
+                    draggingSensor = true;
+                } else {
+                    // Then check charges
+                    selectedChargeIndex = electricField.findChargeAt(worldX, worldY);
+                    if (selectedChargeIndex >= 0) {
+                        draggingCharge = true;
+                    }
                 }
             } else if (action == GLFW_RELEASE) {
                 draggingCharge = false;
                 selectedChargeIndex = -1;
+                draggingSensor = false;
             }
         }
     }
@@ -197,12 +211,26 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
     
     if (showMenu) {
         mainMenu->processMouseMovement(xpos, ypos);
-    } else if (draggingCharge && selectedChargeIndex >= 0) {
-        // Move the selected charge to the new position
-        electricField.moveCharge(selectedChargeIndex, worldX, worldY);
+    } else {
+        if (draggingSensor && fieldSensor) {
+            // Move sensor to new position
+            fieldSensor->setPosition(worldX, worldY);
+            // Update field vector at sensor position
+            fieldSensor->updateFieldVector(electricField);
+        } else if (draggingCharge && selectedChargeIndex >= 0) {
+            // Move the selected charge to the new position
+            electricField.moveCharge(selectedChargeIndex, worldX, worldY);
+            
+            // Update field vector at sensor position if sensor is active
+            if (fieldSensor && fieldSensor->isActive()) {
+                fieldSensor->updateFieldVector(electricField);
+            }
+        }
     }
 
-    selectedChargeIndex = electricField.findChargeAt(worldX, worldY);
+    if (!draggingSensor) {
+        selectedChargeIndex = electricField.findChargeAt(worldX, worldY);
+    }
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -269,7 +297,16 @@ void setupMenu(Menu* menu) {
     menuY -= 50.0f;
     menu -> addItem("Exit", menuX, menuY, 0.66f, normalColor, hoverColor, []() {
         glfwSetWindowShouldClose(glfwGetCurrentContext(), GLFW_TRUE);
-    });    
+    });
+
+    menuY -= 50.0f;
+    menu -> addItem("Toggle sensor", menuX, menuY, 0.66f, normalColor, hoverColor, []() {
+        if (fieldSensor) {
+            fieldSensor->setActive(!fieldSensor->isActive());
+        }
+        showMenu = false;
+        if (mainMenu) mainMenu -> setVisible(false);
+    });
     }
 
 
@@ -317,8 +354,7 @@ int main() {
     // setupTestCharges(electricField);
 
     // Create the charge rendering object
-    ChargeRenderer chargeRenderer;
-
+    
     // Create the text rendering object
     TextRender textRenderer("fonts/GohuFortuni.ttf", 24); // Aumenté el tamaño para mejor visibilidad
     if (!textRenderer.init()) {
@@ -326,7 +362,12 @@ int main() {
         glfwTerminate();
         return -1;
     }
-
+    
+    ChargeRenderer chargeRenderer(&textRenderer, window);
+    // Create the sensor
+    fieldSensor = new Sensor(&textRenderer, window);
+    fieldSensor->setPosition(0.0f, 0.0f);  // Default position at center
+    
     mainMenu = new Menu(&textRenderer, window);
     setupMenu(mainMenu);
 
@@ -365,6 +406,76 @@ int main() {
     glfwTerminate();
     return -1;
     }
+
+    // Create the sensor shader early in your initialization code
+    GLuint sensorShader = createShaderProgram("shaders/sensor_vertex.glsl", "shaders/sensor_fragment.glsl");
+    if (sensorShader == 0) {
+        std::cerr << "Error: Could not create sensor shader program" << std::endl;
+          
+        // Simple vertex shader that just transforms vertices
+        const char* vertexShaderSource = "#version 330 core\n"
+            "layout (location = 0) in vec3 aPos;\n"
+            "uniform mat4 model;\n"
+            "uniform mat4 view;\n"
+            "uniform mat4 projection;\n"
+            "void main() {\n"
+            "    gl_Position = projection * view * model * vec4(aPos, 1.0);\n"
+            "}\n";
+        
+        // Simple fragment shader that just outputs color
+        const char* fragmentShaderSource = "#version 330 core\n"
+            "out vec4 FragColor;\n"
+            "uniform vec3 color;\n"
+            "void main() {\n"
+            "    FragColor = vec4(color, 1.0);\n"
+            "}\n";
+        
+        // Create and compile vertex shader
+        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+        glCompileShader(vertexShader);
+        
+        // Check vertex shader compile status
+        int success;
+        char infoLog[512];
+        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+            std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+        
+        // Create and compile fragment shader
+        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+        glCompileShader(fragmentShader);
+        
+        // Check fragment shader compile status
+        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+            std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+        
+        // Create shader program and link shaders
+        sensorShader = glCreateProgram();
+        glAttachShader(sensorShader, vertexShader);
+        glAttachShader(sensorShader, fragmentShader);
+        glLinkProgram(sensorShader);
+        
+        // Check program link status
+        glGetProgramiv(sensorShader, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(sensorShader, 512, NULL, infoLog);
+            std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+        }
+        
+        // Delete the individual shaders as they're now linked into the program
+        //glDeleteShader(vertexShader);
+        //glDeleteShader(fragmentShader);
+    }
+
+
+    
 
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
@@ -456,6 +567,21 @@ int main() {
         if (mainMenu && showMenu) {
             mainMenu -> render();
         }
+
+        if (fieldSensor && fieldSensor->isActive()) {
+            // Get view and projection matrices from the current shader
+            glm::mat4 view = glm::mat4(1.0f);
+            glm::mat4 projection = glm::mat4(1.0f);
+            
+            // Update the sensor shader with current view and projection matrices
+            glUseProgram(sensorShader);
+            glUniformMatrix4fv(glGetUniformLocation(sensorShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
+            glUniformMatrix4fv(glGetUniformLocation(sensorShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+            
+            // Update and render the sensor
+            fieldSensor->updateFieldVector(electricField);
+            fieldSensor->render(sensorShader);
+        }
         
         double currentTime = glfwGetTime();
         frameCount++;
@@ -469,9 +595,8 @@ int main() {
         textRenderer.renderText(ss.str(), 20.0f, windowHeight - ((windowHeight / 2.0f) + 30.0f), 0.75f, glm::vec3(1.0f, 1.0f, 0.0f));
         
         textRenderer.renderText("Simulación de cargas eléctricas", 20.0f, 17.5f, 0.66f, glm::vec3(1.0f, 1.0f, 1.0f));
-        textRenderer.renderText("Programado por: Rodo Yamazaki", (windowWidth / 2.0f) - 300.0f, 25.0f, 0.5f, glm::vec3(0.7f, 0.7f, 0.7f));
+        textRenderer.renderText("Programado por: Juan Manuel Ley", (windowWidth / 2.0f) - 300.0f, 25.0f, 0.5f, glm::vec3(0.7f, 0.7f, 0.7f));
         textRenderer.renderText("© 2025 - Hokzaap Software", (windowWidth / 2.0f) - 300.0f, 10.0f, 0.5f, glm::vec3(0.7f,0.7f,0.7f));
-
         
         
         glUseProgram(shader);
@@ -483,6 +608,7 @@ int main() {
     }
 
     delete mainMenu;
+    delete fieldSensor;
     glfwTerminate();
     return 0;
 }

@@ -1,11 +1,16 @@
-#include "ChargeRenderer.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
 #include <vector>
+#include <string>
+#include <iomanip>
 
-ChargeRenderer::ChargeRenderer(int segments) {
+#include "ChargeRenderer.hpp"
+#include "TextRender.hpp"
+
+ChargeRenderer::ChargeRenderer(TextRender* textRenderer, GLFWwindow* window, int segments)
+ : textRenderer(textRenderer), window(window) {
     setupCircle(segments);
 }
 
@@ -67,6 +72,14 @@ void ChargeRenderer::setupCircle(int segments) {
 }
 
 void ChargeRenderer::draw(const std::vector<ElectricCharge>& charges, GLuint shaderProgram) {
+    //
+    GLint originalProgram;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &originalProgram);
+    
+    // Make sure we're using the charge shader program
+    glUseProgram(shaderProgram);
+
+
     GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
     GLint chargeLoc = glGetUniformLocation(shaderProgram, "charge");
     
@@ -75,7 +88,7 @@ void ChargeRenderer::draw(const std::vector<ElectricCharge>& charges, GLuint sha
     for (const auto& charge : charges) {
         // Set the charge value for coloring
         glUniform1f(chargeLoc, charge.charge);
-        
+
         // Create model matrix for position and size
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(charge.position.x, charge.position.y, 0.0f));
@@ -88,7 +101,50 @@ void ChargeRenderer::draw(const std::vector<ElectricCharge>& charges, GLuint sha
         
         // Draw the circle
         glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_INT, 0);
+
     }
+        /* ---- Carge value rendering ---- */
+
+    for (const auto& charge : charges) {
+        // Text colour
+        glm::vec3 color(1.0f, 1.0f, 1.0f);
+            
+        // Size based on charge magnitude (with a minimum size and some scaling)
+        float size = 0.05f + 0.03f * std::abs(charge.charge);
+            
+        // Get window dimensions
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+            
+        // Get viewport aspect ratio for proper scaling
+        float aspectRatio = (float)windowWidth / (float)windowHeight;
+            
+        // Convert from world to screen coordinates with aspect ratio correction
+        float screenX, screenY;
+            
+        if (aspectRatio >= 1.0f) {
+            // Wider window
+            screenX = (charge.position.x / aspectRatio + 1.0f) * 0.5f * windowWidth;
+            screenY = (charge.position.y + 1.0f) * 0.5f * windowHeight;
+        } else {
+            // Taller window
+            screenX = (charge.position.x + 1.0f) * 0.5f * windowWidth;
+            screenY = (charge.position.y * aspectRatio + 1.0f) * 0.5f * windowHeight;
+        }
+        
+        // Format charge value with 1 decimal place
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(1) << charge.charge;
+        std::string chargeText = ss.str();
+        
+        // Adjust text size based on charge size but keep it readable
+        float textScale = std::max(0.4f, size * 10.0f);
+        
+        // Render the text centered on the charge
+        textRenderer->renderText(chargeText + "C", screenX - abs(charge.charge) * 10.0f - 20.0f, screenY - 7.5f, textScale, color);
+        }
+
     
     glBindVertexArray(0);
+    glUseProgram(originalProgram);
 }

@@ -90,34 +90,48 @@ void Menu::processKeyPress(int button, int action) {
 
 void Menu::switchOptionDown(int button, int action) {
     if (!visible || button != GLFW_KEY_DOWN || action != GLFW_PRESS) return;
+    
     // Check if any item was selected
-    //std::cout << "Down key pressed" << std::endl;
     int currentIndex = -1;
-    for (size_t i = 0; i < items.size(); i++)
-    {
-        if (items[i].isHovered) {currentIndex = i;
-        break;}
+    for (size_t i = 0; i < items.size(); i++) {
+        if (items[i].isHovered) {
+            currentIndex = i;
+            break;
+        }
     }
-    if (currentIndex == -1) items[0].isHovered = true;
-    int newIndex = (currentIndex + 1) % items.size();
-    items[currentIndex].isHovered = false;
-    items[newIndex].isHovered = true; 
+    
+    if (currentIndex == -1) {
+        // If no item is selected, select the first one
+        items[0].isHovered = true;
+    } else {
+        // Deselect current item and select the next one
+        items[currentIndex].isHovered = false;
+        int newIndex = (currentIndex + 1) % items.size();
+        items[newIndex].isHovered = true;
+    }
 }
 
 void Menu::switchOptionUp(int button, int action) {
     if (!visible || button != GLFW_KEY_UP || action != GLFW_PRESS) return;
+    
     // Check if any item was selected
-    //std::cout << "Up key pressed" << std::endl;
     int currentIndex = -1;
-    for (size_t i = 0; i < items.size(); i++)
-    {
-        if (items[i].isHovered) {currentIndex = i;
-        break;}
+    for (size_t i = 0; i < items.size(); i++) {
+        if (items[i].isHovered) {
+            currentIndex = i;
+            break;
+        }
     }
-    if (currentIndex == -1) items[items.size() -1 ].isHovered = true;
-    int newIndex = (currentIndex - 1 + items.size()) % items.size();
-    items[currentIndex].isHovered = false;
-    items[newIndex].isHovered = true; 
+    
+    if (currentIndex == -1) {
+        // If no item is selected, select the last one
+        items[items.size() - 1].isHovered = true;
+    } else {
+        // Deselect current item and select the previous one
+        items[currentIndex].isHovered = false;
+        int newIndex = (currentIndex - 1 + items.size()) % items.size();
+        items[newIndex].isHovered = true;
+    }
 }
 
 
