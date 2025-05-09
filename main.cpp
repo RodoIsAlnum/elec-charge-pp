@@ -595,7 +595,7 @@ int main() {
         textRenderer.renderText(ss.str(), 20.0f, windowHeight - ((windowHeight / 2.0f) + 30.0f), 0.75f, glm::vec3(1.0f, 1.0f, 0.0f));
         
         textRenderer.renderText("Simulación de cargas eléctricas", 20.0f, 17.5f, 0.66f, glm::vec3(1.0f, 1.0f, 1.0f));
-        textRenderer.renderText("Programado por: Juan Manuel Ley", (windowWidth / 2.0f) - 300.0f, 25.0f, 0.5f, glm::vec3(0.7f, 0.7f, 0.7f));
+        textRenderer.renderText("Programado por: Rodo Yamazaki", (windowWidth / 2.0f) - 300.0f, 25.0f, 0.5f, glm::vec3(0.7f, 0.7f, 0.7f));
         textRenderer.renderText("© 2025 - Hokzaap Software", (windowWidth / 2.0f) - 300.0f, 10.0f, 0.5f, glm::vec3(0.7f,0.7f,0.7f));
         
         
